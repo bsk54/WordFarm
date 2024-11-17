@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<!--************************************************************************************************************-->
+<!--******************************************* Word Farm ******************************************************-->
+<!--**************************************** November 17, 2024 *************************************************-->
+<!--************************************************************************************************************-->
+<!--******************************************* Version 1.0 ****************************************************-->
+<!--**************************************** November 17, 2024 *************************************************-->
+<!--************************************************************************************************************-->
+<!---------------------------------------------------------------------------------------------------------------->
+<!------------------------------------ Code by: Bernd Sebastian Kamps -------------------------------------------->
+<!---------------------------------------------------------------------------------------------------------------->
+<!-- Description: Word Farm is a web-based tool designed to facilitate text analysis and vocabulary management. -->
+<!-- Users can input text, click on words to select them, track clicked items, and export their selections.  ----->
+<!-- The application offers a user-friendly interface with features like copy to clipboard. ---------------------->
+<!--************************************************************************************************************-->
+<!-- License: Word Farm is released under the MIT License. Free for personal and commercial use, ----------------->
+<!-- as long as proper credit is given. See LICENSE.txt in the project repository for more details. -------------->
+<!--************************************************************************************************************-->
+<!-- Repository: https://github.com/bsk54/WordFarm.git ----------------------------------------------------------->
+<!-- Web site: https://aioPop.com/WordFarm ----------------------------------------------------------------------->
+<!--************************************************************************************************************-->
+<!-- Acknowledgments: Special thanks to all contributors and the open-source community for support and ----------->
+<!-- contributions to this project. ------------------------------------------------------------------------------>
+<!--************************************************************************************************************-->
+<!-- Note: Word Farm is free and open source. We encourage modifications and sharing, ---------------------------->
+<!-- but please give proper credit to the original authors and maintain this header. ----------------------------->
+<!--************************************************************************************************************-->
+
+
+<head>
+    <meta charset="UTF-8">
+    <title>Word Farm</title>
+    <style>
+/* Light Mode Styles (Mid-90s Aesthetic) */
+body {
+    background-color: #FFFFFF; /* White background */
+    color: #000000; /* Black text */
+    font-family: "Courier New", Courier, monospace; /* Monospaced font for mid-90s feel */
+    margin: 20px;
+}
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+textarea {
+    width: 100%;
+    height: 100px;
+    background-color: #F0F0F0;
+    color: #000000;
+    border: 1px solid #000000;
+    padding: 10px;
+    font-family: "Courier New", Courier, monospace;
+    box-sizing: border-box;
+    white-space: pre-wrap; /* Preserve line breaks in textarea */
+}
+button {
+    background-color: #E0E0E0;
+    color: #000000;
+    border: 1px solid #000000;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: "Courier New", Courier, monospace;
+    margin-top: 10px;
+    margin-right: 10px;
+}
+button:hover {
+    background-color: #C0C0C0;
+}
+.word {
+    cursor: pointer;
+    padding: 2px;
+    display: inline; /* Retains padding for words */
+    transition: color 0.3s ease;
+}
+.character {
+    cursor: pointer;
+    padding: 0px; /* Removes padding for characters to eliminate spaces */
+    display: inline;
+    transition: color 0.3s ease;
+}
+.clicked {
+    color: red;
+}
+.clicked-words {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #F0F0F0;
+    border: 1px solid #000000;
+}
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #000000;
+    margin: 20px 0;
+}
+footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 0.9em;
+    color: #555555;
+}
+label {
+    font-family: "Courier New", Courier, monospace;
+}
+.counts {
+    margin-top: 10px;
+    font-size: 0.9em;
+}
+@media (max-width: 600px) {
+    button {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+    .controls {
+        display: flex;
+        flex-direction: column;
+    }
+}
+/* Scrollable clicked items list for better usability on small screens */
+#clickedList {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-left: 20px;
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Word Farm</h1>
+<!--
+        <p>Copy your text below:</p>
+        -->
+		<form id="textForm">
+            <textarea id="inputText" placeholder="Copy your text here..."></textarea><br>
+            <label>
+                <input type="checkbox" id="chineseCheckbox">
+                Click if you submit Chinese text
+            </label><br>
+            <div class="controls">
+                <button type="submit">Submit</button>
+            </div>
+        </form>
+
+        <div class="counts" id="counts">
+            <!-- Word/Character counts will appear here -->
+        </div>
+
+        <hr>
+
+        <div id="displayArea" style="white-space: pre-wrap;">
+            <!-- Processed text with clickable words/characters will appear here -->
+        </div>
+
+        <div class="controls">
+            <button id="copyButton">Copy to Clipboard</button>
+            <button id="startOverButton">Start Over</button>
+        </div>
+
+        <div class="clicked-words" id="clickedWords">
+            <strong>Clicked Items:</strong>
+            <ul id="clickedList">
+                <!-- List of clicked words/characters will appear here -->
+            </ul>
+        </div>
+
+        <footer>
+            &copy; 2024 Copyright BSK
+        </footer>
+    </div>
+
+    <script>
+        // JavaScript Functionality
+
+        // Array to keep track of clicked items with their positions
+        let clickedItems = [];
+        let isChinese = false;
+
+        // Function to handle form submission
+        document.getElementById('textForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent page reload
+
+            // Clear previous data
+            document.getElementById('displayArea').innerHTML = '';
+            clickedItems = [];
+            document.getElementById('clickedList').innerHTML = '';
+            updateCounts();
+
+            // Get input text
+            const text = document.getElementById('inputText').value;
+            const trimmedText = text.trim();
+
+            if (trimmedText === '') {
+                alert('Please enter some text.');
+                return;
+            }
+
+            // Check if Chinese checkbox is selected
+            isChinese = document.getElementById('chineseCheckbox').checked;
+
+            let items = [];
+
+            if (isChinese) {
+                // Split text into individual characters
+                items = Array.from(text);
+            } else {
+                // Split text into tokens: line breaks, punctuation marks, spaces, and words
+                // Regex explanation:
+                // (\r\n|\n|\r) matches any line break
+                // ([.,;!?]) matches specific punctuation marks to display as-is
+                // (\s+) matches spaces
+                // ([^\s.,;!?]+) matches words excluding spaces and specified punctuation
+                const regex = /(\r\n|\n|\r)|([.,;!?])|(\s+)|([^\s.,;!?]+)/g;
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    if (match[1]) { // Line break
+                        items.push('\n');
+                    } else if (match[2]) { // Punctuation mark
+                        items.push(match[2]);
+                    } else if (match[3]) { // Space(s)
+                        items.push(match[3]);
+                    } else if (match[4]) { // Word
+                        items.push(match[4]);
+                    }
+                }
+            }
+
+            // Update counts
+            const total = isChinese ? Array.from(text).length : countWords(items);
+            const countsDiv = document.getElementById('counts');
+            countsDiv.innerHTML = `Total ${isChinese ? 'Characters' : 'Words'}: ${total} | Clicked Items: ${clickedItems.length}`;
+
+            // Create elements for each token
+items.forEach((item, index) => { // Changed 'ms' to 'items' assuming it was a typo
+    if (item === '\n') {
+        // Insert a line break
+        const br = document.createElement('br');
+        document.getElementById('displayArea').appendChild(br);
+    } else if (isPunctuation(item)) {
+        // Display punctuation marks as-is, no span
+        const punctSpan = document.createElement('span');
+        punctSpan.textContent = item;
+        document.getElementById('displayArea').appendChild(punctSpan);
+    } else if (isSpace(item)) {
+        // Display spaces as-is
+        const spaceSpan = document.createElement('span');
+        spaceSpan.textContent = item;
+        document.getElementById('displayArea').appendChild(spaceSpan);
+    } else if (isWord(item)) {
+        // It's a word or character, make it clickable
+        const span = document.createElement('span');
+        span.textContent = item;
+        span.className = isChinese ? 'character' : 'word';
+        span.dataset.index = index; // Store the item's position
+
+        // Add click event listener
+        span.addEventListener('click', function() {
+            if (!this.classList.contains('clicked')) {
+                // If not clicked, mark as clicked
+                this.classList.add('clicked');
+                clickedItems.push({ item: item, index: index, element: this });
+            } else {
+                // If already clicked, unmark it
+                this.classList.remove('clicked');
+                // Find and remove the item from clickedItems
+                clickedItems = clickedItems.filter(entry => entry.index !== index);
+            }
+            updateClickedList();
+            updateCounts();
+        });
+
+        document.getElementById('displayArea').appendChild(span);
+    }
+});
+
+
+            // After processing, set focus back to the textarea
+            document.getElementById('inputText').focus();
+        });
+
+        // Helper function to determine if a token is a word
+        function isWord(token) {
+            return /^[^\s.,;!?]+$/.test(token);
+        }
+
+        // Helper function to determine if a token is a punctuation mark
+        function isPunctuation(token) {
+            return /^[.,;!?]$/.test(token);
+        }
+
+        // Helper function to determine if a token is space(s)
+        function isSpace(token) {
+            return /^\s+$/.test(token);
+        }
+
+        // Helper function to count words excluding punctuation and line breaks
+        function countWords(tokens) {
+            return tokens.filter(token => isWord(token)).length;
+        }
+
+        // Function to update the list of clicked items in order
+        function updateClickedList() {
+            const list = document.getElementById('clickedList');
+            list.innerHTML = ''; // Clear current list
+
+            // Sort clicked items based on their original position
+            const sortedClicked = clickedItems.slice().sort((a, b) => a.index - b.index);
+
+            sortedClicked.forEach((entry) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = entry.item;
+                list.appendChild(listItem);
+            });
+        }
+
+        // Function to update counts
+        function updateCounts() {
+            const text = document.getElementById('inputText').value;
+            const isChineseChecked = document.getElementById('chineseCheckbox').checked;
+            let total = 0;
+            if (isChineseChecked) {
+                total = Array.from(text).length;
+            } else {
+                // Split text into tokens and count words
+                const regex = /(\r\n|\n|\r)|([.,;!?])|(\s+)|([^\s.,;!?]+)/g;
+                let match;
+                let wordCount = 0;
+                while ((match = regex.exec(text)) !== null) {
+                    if (match[4]) { // Word
+                        wordCount++;
+                    }
+                }
+                total = wordCount;
+            }
+            const clickedCount = clickedItems.length;
+            const countsDiv = document.getElementById('counts');
+            countsDiv.innerHTML = `Total ${isChineseChecked ? 'Characters' : 'Words'}: ${total} | Clicked Items: ${clickedCount}`;
+        }
+
+        // Function to copy text and clicked items to clipboard
+        document.getElementById('copyButton').addEventListener('click', function() {
+            const originalText = document.getElementById('inputText').value;
+
+            if (originalText.trim() === '') {
+                alert('No text to copy.');
+                return;
+            }
+
+            let copiedContent = 'Original Text:\n' + originalText + '\n\nClicked Items:\n';
+
+            if (clickedItems.length === 0) {
+                copiedContent += 'None';
+            } else {
+                // Sort clicked items based on their original position
+                const sortedClicked = clickedItems.slice().sort((a, b) => a.index - b.index);
+                sortedClicked.forEach((entry) => {
+                    copiedContent += entry.item + '\n';
+                });
+            }
+
+            // Create a temporary textarea to copy the content
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = copiedContent;
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            tempTextarea.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                document.execCommand('copy');
+                alert('Text and clicked items copied to clipboard!');
+            } catch (err) {
+                alert('Failed to copy text.');
+            }
+
+            document.body.removeChild(tempTextarea);
+        });
+
+        // Function to reload the page (Start Over)
+        document.getElementById('startOverButton').addEventListener('click', function() {
+            if (confirm('Are you sure you want to start over? All data will be lost.')) {
+                location.reload();
+            }
+        });
+
+        // Automatically focus the cursor on the textarea when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('inputText').value = ''; // Ensure textarea is empty
+            document.getElementById('inputText').focus(); // Set focus to textarea
+        });
+    </script>
+</body>
+</html>
